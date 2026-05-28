@@ -86,6 +86,10 @@ function stripResourceKey(seg) {
  * @param {Array<{type: string, pattern: string, service: string}>} serviceMap
  * @returns {string}
  */
+const STATIC_ASSET_NOISE = /^(\/@vite|\/@react-refresh|\/@fs|\/node_modules|\/src\/|\/assets\/|\/fonts\/|__vite_ping|__hmr|\/_next\/static\/|\/_next\/image|\/favicon\.|\/robots\.txt|\/sitemap\.xml|\/manifest\.json|\/sw\.js|\/workbox-)/;
+
+const CDN_NOISE_HOST = /^(fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com|use\.typekit\.net|kit\.fontawesome\.com)$/;
+
 export function classifyRequest(url, serviceMap = []) {
   if (
     url.startsWith('chrome') ||
@@ -99,11 +103,25 @@ export function classifyRequest(url, serviceMap = []) {
   let parsed;
   try {
     parsed = new URL(url);
-  } catch (_e) {
+  } catch {
     return 'unknown';
   }
 
   const { pathname, hostname } = parsed;
+
+  // Filter out static asset / dev-server noise (Vite HMR, Next.js static chunks, favicons, etc.)
+  if (STATIC_ASSET_NOISE.test(pathname)) return 'internal';
+
+  // Filter out CDN / font hosting noise (Google Fonts, jsDelivr, etc.)
+  if (CDN_NOISE_HOST.test(hostname)) return 'internal';
+
+  // Filter localhost static file segments on any port
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+  if (isLocalhost) {
+    const firstSeg = pathname.split('/').filter(Boolean)[0] || '';
+    const STATIC_SEGMENT = /^(@|_next$|node_modules$|src$|assets$|fonts$|public$|static$|\.[a-z]+$)/i;
+    if (STATIC_SEGMENT.test(firstSeg) || firstSeg === '') return 'internal';
+  }
 
   // 1. Explicit user-defined rules — first match wins
   for (const rule of serviceMap) {
