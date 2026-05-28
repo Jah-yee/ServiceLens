@@ -36,10 +36,10 @@ function applyFilters(requests, filters) {
 function groupByService(requests) {
   const map = new Map();
   for (const r of requests) {
+    if (r.service === 'internal') continue;
     if (!map.has(r.service)) map.set(r.service, []);
     map.get(r.service).push(r);
   }
-  // Sort groups by name
   return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 }
 
@@ -105,7 +105,7 @@ export default function App() {
 
   // Unique services for filter dropdown
   const allServices = useMemo(
-    () => [...new Set(classified.map((r) => r.service))].sort(),
+    () => [...new Set(classified.map((r) => r.service))].filter((s) => s !== 'internal').sort(),
     [classified]
   );
 
